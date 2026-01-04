@@ -1,6 +1,25 @@
-# Project Name
+# Weekly Viewer Project
 
-<!-- Replace with your project description -->
+A tool for viewing and navigating personal weekly markdown notes, with AI CLI assistance for surfacing buried information.
+
+---
+
+## IMPORTANT: Personal Data Protection
+
+**The `viewer_project/weeklies/` directory contains PERSONAL NOTES that must NEVER be committed to GitHub.**
+
+The `.gitignore` is configured to exclude:
+- `viewer_project/weeklies/` and all contents
+- Any `.md`, `.pdf`, `.docx` files in `viewer_project/`
+- Directories named `irregular/`, `personal/`, `private/`, `notes/`
+
+**For all AI agents and contributors:**
+- DO NOT modify `.gitignore` to allow personal notes
+- DO NOT commit personal data under any circumstances
+- If you see personal data in a commit, alert the repo owner immediately
+- Keep this protection in ALL branches and worktrees
+
+---
 
 ## Getting Started
 

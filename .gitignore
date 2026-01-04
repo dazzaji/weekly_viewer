@@ -1,4 +1,29 @@
 # =============================================================================
+# PERSONAL NOTES - NEVER COMMIT TO GITHUB
+# =============================================================================
+# Weekly notes contain personal/private information - DO NOT COMMIT
+viewer_project/weeklies/
+viewer_project/weeklies/**
+**/weeklies/
+**/weeklies/**
+
+# Any markdown files in the viewer_project data directories
+viewer_project/**/*.md
+viewer_project/**/*.pdf
+viewer_project/**/*.docx
+
+# Irregular/misc personal notes if that directory exists
+**/irregular/
+**/irregular/**
+
+# Generic personal data patterns
+**/personal/
+**/private/
+**/notes/
+**/*-notes.md
+**/*-personal.md
+
+# =============================================================================
 # macOS
 # =============================================================================
 .DS_Store
