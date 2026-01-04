@@ -149,7 +149,7 @@
     <input id="folder" type="file" webkitdirectory multiple style="display:none" />
     <button id="paste" class="btn ghost" title="Paste Markdown (⌘/Ctrl+V)">Paste</button>
 
-    <input id="search" type="search" placeholder="Find in text (⌘/Ctrl+F) — supports @@tag or words" />
+    <input id="search" type="search" placeholder="Find in text (⌘/Ctrl+F) — supports @ACTION, @METRIX, etc." />
 
     <div id="modeGroup" role="group" aria-label="heading view">
       <button class="btn" data-mode="h1">H1</button>
@@ -237,8 +237,9 @@
   const isH1 = l => /^# (?!#)/.test(l);
   const isH2 = l => /^## (?!#)/.test(l);
   const tagFromLine = l => {
-    // return the tag if line starts with @@word (allow leading spaces)
-    const m = l.match(/^\s*@@([a-zA-Z0-9_\-:.]+)/);
+    // return the tag if line starts with @TAG or @@tag (allow leading spaces)
+    // Supports: @ACTION, @ACTION_DONE, @METRIX, @@custom, etc.
+    const m = l.match(/^\s*(@{1,2}[A-Za-z][A-Za-z0-9_\-:.]*)/);
     return m ? m[1] : null;
   };
   const esc = s => s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
@@ -297,7 +298,8 @@
     s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
     s = s.replace(/`(.+?)`/g,'<code class="mono">$1</code>');
     s = s.replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
-    s = s.replace(/(^|\s)(@@[a-zA-Z0-9_\-:.]+)/g,'$1<mark>$2</mark>');
+    // Highlight both @TAG and @@tag patterns
+    s = s.replace(/(^|\s)(@{1,2}[A-Za-z][A-Za-z0-9_\-:.]*)/g,'$1<mark>$2</mark>');
     return s;
   }
 
@@ -312,12 +314,12 @@
       // Flat view: each line as paragraph or heading
       const frag = document.createDocumentFragment();
       lines.forEach((l, i) => {
-        // tag filter: only lines that START with @@tag (as requested)
+        // tag filter: only lines that START with the active tag
         if(activeTag){
-          if(!new RegExp(`^\\s*@@${escapeReg(activeTag)}\\b`).test(l)) return;
+          if(!new RegExp(`^\\s*${escapeReg(activeTag)}\\b`).test(l)) return;
         }
-        // Hide headings in tag view unless they also match the tag start (keeps strictness)
-        if(activeTag && (isH1(l) || isH2(l)) && !/^\s*@@/.test(l)) return;
+        // Hide headings in tag view unless they also match a tag start
+        if(activeTag && (isH1(l) || isH2(l)) && !/^\s*@/.test(l)) return;
 
         const p = document.createElement('p');
         p.className = 'line fade-enter';
@@ -405,7 +407,8 @@
   function makeChip(name,count){
     const span = document.createElement('span');
     span.className='chip'; span.role='button'; span.tabIndex=0;
-    span.innerHTML = `<span>@@${esc(name)}</span> <span class="count">${count}</span>`;
+    // Display tag as-is (already includes @ or @@)
+    span.innerHTML = `<span>${esc(name)}</span> <span class="count">${count}</span>`;
     span.addEventListener('click', () => applyTag(name));
     span.addEventListener('keydown', (e) => { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); applyTag(name); }});
     return span;
@@ -446,7 +449,8 @@
     items.forEach(([t,meta]) => {
       const row = document.createElement('div');
       row.className='row';
-      row.innerHTML = `<div>@@${esc(t)}</div><div class="count">${meta.count}</div>`;
+      // Display tag as-is (already includes @ or @@)
+      row.innerHTML = `<div>${esc(t)}</div><div class="count">${meta.count}</div>`;
       row.addEventListener('click', () => {
         applyTag(t);
         closeTagPanel();
@@ -458,7 +462,7 @@
 
   function applyTag(tag){
     activeTag = tag;
-    mode = 'all'; // filtered view is a flat list of only lines that *start* with @@tag
+    mode = 'all'; // filtered view is a flat list of only lines that start with the tag
     updateModeButtons();
     render();
     showActiveTag();
@@ -597,7 +601,7 @@
   });
 
   el.tagsBtn.addEventListener('click', () => {
-    if(!tagsIndex.size){ alert('No @@tags found.'); return; }
+    if(!tagsIndex.size){ alert('No @tags found. Load files with @ACTION, @METRIX, etc.'); return; }
     el.tagPanel.style.display === 'block' ? closeTagPanel() : openTagPanel();
   });
   el.tagFilter.addEventListener('input', buildTagList);
