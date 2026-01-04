@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Markdown Navigator — Fold & Tag Filter</title>
+<style>
+  :root{
+    --bg:#0b0c10;
+    --panel:#111217;
+    --muted:#9aa0a6;
+    --text:#e6e9ee;
+    --accent:#6ee7b7;
+    --accent-2:#60a5fa;
+    --border:#23242b;
+    --chip:#1a1b22;
+    --chip-h:#232532;
+    --focus:#eab308;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:linear-gradient(180deg,var(--bg),#0d1017);
+    color:var(--text);
+    font:15px/1.55 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    letter-spacing:.2px;
+  }
+  header{
+    position:sticky; top:0; z-index:30;
+    display:flex; gap:.75rem; align-items:center; padding:.6rem .9rem;
+    background:rgba(17,18,23,.85); backdrop-filter: blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  header .title{font-weight:600}
+  header .spacer{flex:1}
+  .btn{
+    appearance:none; border:1px solid var(--border); background:var(--chip);
+    color:var(--text); padding:.45rem .65rem; border-radius:10px; cursor:pointer;
+    transition:.15s transform,.15s background;
+    font-weight:600; font-size:.9rem;
+  }
+  .btn:hover{background:var(--chip-h)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{border-color:transparent; background:linear-gradient(135deg,var(--accent-2),var(--accent)); color:#081218}
+  .btn.ghost{background:transparent}
+  .kbd{font:600 .82rem/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted)}
+  #modeGroup .btn{padding:.35rem .55rem}
+  #file{
+    display:none;
+  }
+  #drop{
+    display:none;
+  }
+  #search{
+    background:#0f1116; border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:.5rem .75rem; min-width:240px;
+  }
+  main{
+    display:grid; grid-template-columns: 300px 1fr; gap:1px; height:calc(100% - 56px);
+    background:var(--border);
+  }
+  aside, article{background:var(--panel); overflow:auto}
+  aside{padding:12px; position:relative}
+  aside h2{
+    margin:.25rem 0 .5rem; font-size:.95rem; color:var(--muted); font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+  }
+  .toc{display:flex; flex-direction:column; gap:2px}
+  .toc a{
+    display:block; padding:.35rem .5rem; color:var(--text); border-radius:8px; text-decoration:none;
+    border:1px solid transparent;
+  }
+  .toc a.l2{padding-left:1.5rem; color:#cbd5e1}
+  .toc a:hover{background:#14161d}
+  .toc a.active{border-color:var(--accent); background:#0f1420}
+  .chips{display:flex; flex-wrap:wrap; gap:.4rem; margin:.4rem 0 .8rem}
+  .chip{
+    background:var(--chip); border:1px solid var(--border); border-radius:999px; padding:.12rem .6rem; cursor:pointer;
+    display:inline-flex; gap:.4rem; align-items:center
+  }
+  .chip:hover{background:var(--chip-h)}
+  .chip .count{color:var(--muted); font-weight:600; font-size:.8rem}
+  .chip.active{outline:2px solid var(--accent); color:var(--accent)}
+  article{padding:18px 20px 80px; position:relative}
+  .md{max-width: 1100px; margin: 0 auto}
+  .line{white-space:pre-wrap; word-wrap:break-word; margin:0}
+  .h1{font-size:1.5rem; font-weight:800; margin-top:1rem; padding:.2rem 0}
+  .h2{font-size:1.1rem; font-weight:700; color:#cbd5e1; margin-top:.75rem}
+  .tagline{color:var(--muted)}
+  .hidden{display:none!important}
+  details.group{
+    border:1px solid var(--border); border-radius:14px; margin:.6rem 0; overflow:hidden; background:#0f1116;
+  }
+  details.group > summary{
+    list-style:none; cursor:pointer; display:flex; align-items:center; gap:.6rem; padding:.65rem .8rem;
+    background:linear-gradient(180deg,#0f1116,#0d0f14);
+    font-weight:700; position:sticky; top:0;
+  }
+  details.group > summary::-webkit-details-marker{display:none}
+  .caret{transition:.2s transform}
+  details[open] > summary .caret{transform:rotate(90deg)}
+  .g-body{padding:.6rem .85rem .9rem}
+  .toolbar{
+    position:sticky; bottom:0; z-index:25; display:flex; gap:.5rem; align-items:center; justify-content:flex-end;
+    padding:.55rem .7rem; border-top:1px solid var(--border);
+    background:linear-gradient(180deg,rgba(15,17,22,.9),rgba(15,17,22,.98));
+  }
+  .pill{
+    display:inline-flex; align-items:center; gap:.4rem;
+    border:1px dashed var(--border); border-radius:999px; padding:.25rem .55rem; color:var(--muted)
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  mark{background:#3b82f620; border:1px solid #3b82f640; border-radius:4px; padding:0 .2rem}
+  .fade-enter{animation:fade .18s ease-out}
+  @keyframes fade{from{opacity:.4; transform:translateY(2px)} to{opacity:1; transform:none}}
+  /* tag overlay */
+  #tagPanel{
+    position:fixed; inset:auto 20px 20px auto; width:320px; max-height:60vh; overflow:auto;
+    background:#0b0f16; border:1px solid var(--border); border-radius:14px; box-shadow:0 20px 60px #0008; padding:10px; z-index:50;
+    display:none;
+  }
+  #tagPanel header{position:sticky; top:0; padding:8px 6px; background:transparent; border:none; backdrop-filter:none}
+  #tagPanel .list{display:flex; flex-direction:column; gap:.35rem; padding:8px}
+  #tagPanel .row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:#0f1116; border:1px solid var(--border); border-radius:10px; padding:.4rem .55rem; cursor:pointer;
+  }
+  #tagPanel .row:hover{background:#131622}
+  #tagFilter{
+    width:100%; background:#0f1116; border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:.45rem .6rem;
+  }
+  .empty{color:var(--muted); padding:.5rem .25rem}
+  /* small screens */
+  @media (max-width: 980px){
+    main{grid-template-columns: 1fr}
+    aside{display:none}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <span class="title">Markdown Navigator</span>
+    <div class="spacer"></div>
+
+    <label class="btn ghost" for="file" title="Open .md file">Open .md</label>
+    <input id="file" type="file" accept=".md,.markdown,.txt" />
+    <button id="paste" class="btn ghost" title="Paste Markdown (⌘/Ctrl+V)">Paste</button>
+
+    <input id="search" type="search" placeholder="Find in text (⌘/Ctrl+F) — supports @@tag or words" />
+
+    <div id="modeGroup" role="group" aria-label="heading view">
+      <button class="btn" data-mode="h1">H1</button>
+      <button class="btn" data-mode="h1h2">H1+H2</button>
+      <button class="btn" data-mode="all">All</button>
+    </div>
+
+    <button id="collapseAll" class="btn" title="Collapse all">Collapse</button>
+    <button id="expandAll" class="btn" title="Expand all">Expand</button>
+
+    <button id="tagsBtn" class="btn primary" title="Show tags panel">Tags</button>
+  </header>
+
+  <main>
+    <aside>
+      <h2>Outline</h2>
+      <nav id="toc" class="toc" aria-label="Document outline"></nav>
+
+      <h2>Active tag</h2>
+      <div id="activeTag" class="chips"></div>
+
+      <h2>Quick tags</h2>
+      <div id="quickTags" class="chips" aria-live="polite"></div>
+    </aside>
+
+    <article>
+      <div id="md" class="md" aria-live="polite">
+        <p class="tagline">Open a Markdown file or paste content to start. Headings become collapsible groups. Click "Tags" to view and filter lines that begin with <code class="mono">@@tag</code>.</p>
+      </div>
+
+      <div class="toolbar">
+        <span class="pill">Lines: <span id="lineCount">0</span></span>
+        <span class="pill">Tags: <span id="tagCount">0</span></span>
+        <span class="pill">Mode: <span id="modeLabel">—</span></span>
+      </div>
+    </article>
+  </main>
+
+  <!-- Tag panel -->
+  <section id="tagPanel" role="dialog" aria-modal="false" aria-label="All tags">
+    <header>
+      <input id="tagFilter" type="search" placeholder="Filter tags…" />
+    </header>
+    <div id="tagList" class="list"></div>
+  </section>
+
+<script>
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  const el = {
+    file: $('#file'),
+    paste: $('#paste'),
+    search: $('#search'),
+    md: $('#md'),
+    lineCount: $('#lineCount'),
+    tagCount: $('#tagCount'),
+    modeLabel: $('#modeLabel'),
+    toc: $('#toc'),
+    quickTags: $('#quickTags'),
+    activeTag: $('#activeTag'),
+    tagPanel: $('#tagPanel'),
+    tagFilter: $('#tagFilter'),
+    tagList: $('#tagList'),
+    collapseAll: $('#collapseAll'),
+    expandAll: $('#expandAll'),
+    tagsBtn: $('#tagsBtn'),
+    modeButtons: $$('#modeGroup .btn')
+  };
+
+  // State
+  let raw = '';
+  let lines = [];
+  let groups = []; // [{h1, h2s:[...] }]
+  let tagsIndex = new Map(); // tag -> {count, lines:[idx]}
+  let mode = 'h1'; // h1 | h1h2 | all
+  let activeTag = null;
+
+  // Helpers
+  const isH1 = l => /^# (?!#)/.test(l);
+  const isH2 = l => /^## (?!#)/.test(l);
+  const tagFromLine = l => {
+    // return the tag if line starts with @@word (allow leading spaces)
+    const m = l.match(/^\s*@@([a-zA-Z0-9_\-:.]+)/);
+    return m ? m[1] : null;
+  };
+  const esc = s => s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+  const clear = n => { while(n.firstChild) n.removeChild(n.firstChild); };
+
+  function parse(mdText){
+    raw = mdText;
+    lines = mdText.split(/\r?\n/);
+    el.lineCount.textContent = lines.length;
+
+    // Build heading groups (H1 + children region until next H1)
+    groups = [];
+    let current = null;
+    for(let i=0;i<lines.length;i++){
+      const l = lines[i];
+      if(isH1(l)){
+        current = {h1: {i, text: l.replace(/^# /,''), anchor: slug(l)}, body:[], h2s:[]};
+        groups.push(current);
+      } else if (isH2(l) && current){
+        current.h2s.push({i, text: l.replace(/^## /,''), anchor: slug(l)});
+        current.body.push({i, l}); // keep it too
+      } else if (current){
+        current.body.push({i, l});
+      }
+    }
+
+    // Build tag index
+    tagsIndex = new Map();
+    lines.forEach((l,i) => {
+      const t = tagFromLine(l);
+      if(t){
+        const entry = tagsIndex.get(t) || {count:0, lines:[]};
+        entry.count++; entry.lines.push(i);
+        tagsIndex.set(t, entry);
+      }
+    });
+    el.tagCount.textContent = tagsIndex.size;
+
+    render();
+    buildTOC();
+    seedQuickTags();
+    updateMode(mode);
+    if(activeTag) applyTag(activeTag); // re-apply if re-parsed
+  }
+
+  function slug(l){
+    return l.toLowerCase().replace(/^#+\s*/, '')
+      .replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').slice(0,80);
+  }
+
+  function mdToHTML(line){
+    // very light inline handling for demo-quality display
+    let s = esc(line);
+    s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    s = s.replace(/`(.+?)`/g,'<code class="mono">$1</code>');
+    s = s.replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+    s = s.replace(/(^|\s)(@@[a-zA-Z0-9_\-:.]+)/g,'$1<mark>$2</mark>');
+    return s;
+  }
+
+  function render(){
+    clear(el.md);
+    if(!lines.length){
+      el.md.innerHTML = '<p class="tagline">Open a Markdown file or paste content to start.</p>';
+      return;
+    }
+
+    if(mode === 'all' || activeTag){
+      // Flat view: each line as paragraph or heading
+      const frag = document.createDocumentFragment();
+      lines.forEach((l, i) => {
+        // tag filter: only lines that START with @@tag (as requested)
+        if(activeTag){
+          if(!new RegExp(`^\\s*@@${escapeReg(activeTag)}\\b`).test(l)) return;
+        }
+        // Hide headings in tag view unless they also match the tag start (keeps strictness)
+        if(activeTag && (isH1(l) || isH2(l)) && !/^\s*@@/.test(l)) return;
+
+        const p = document.createElement('p');
+        p.className = 'line fade-enter';
+        if(isH1(l)) p.classList.add('h1');
+        if(isH2(l)) p.classList.add('h2');
+        p.id = (isH1(l)||isH2(l)) ? slug(l) : '';
+        p.innerHTML = mdToHTML(l);
+        frag.appendChild(p);
+      });
+      el.md.appendChild(frag);
+      return;
+    }
+
+    // Grouped view (H1 or H1+H2)
+    groups.forEach(g => {
+      const details = document.createElement('details');
+      details.className = 'group fade-enter';
+      details.open = (mode === 'h1h2'); // sensible default: H1+H2 shows content open
+
+      const summary = document.createElement('summary');
+      summary.innerHTML = `<span class="caret">▸</span> <span>${esc(g.h1.text)}</span>`;
+      summary.id = g.h1.anchor;
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'g-body';
+
+      if(mode === 'h1'){
+        g.body.forEach(({l}) => {
+          // show only non-heading body lines for H1 mode (collapse H2)
+          if(isH2(l)) return;
+          const p = document.createElement('p');
+          p.className='line';
+          p.innerHTML = mdToHTML(l);
+          body.appendChild(p);
+        });
+      }else if(mode === 'h1h2'){
+        g.body.forEach(({l}) => {
+          const p = document.createElement('p');
+          p.className = 'line';
+          if(isH2(l)) p.classList.add('h2');
+          p.innerHTML = mdToHTML(l);
+          body.appendChild(p);
+        });
+      }
+
+      details.appendChild(body);
+      el.md.appendChild(details);
+    });
+  }
+
+  function buildTOC(){
+    clear(el.toc);
+    if(!groups.length){ return; }
+    const frag = document.createDocumentFragment();
+    groups.forEach(g => {
+      const a = document.createElement('a');
+      a.href = '#'+g.h1.anchor; a.textContent = g.h1.text;
+      a.addEventListener('click', e => {
+        setActiveTOC(a);
+      });
+      frag.appendChild(a);
+      if(g.h2s.length){
+        g.h2s.forEach(h2 => {
+          const b = document.createElement('a');
+          b.className='l2';
+          b.href = '#'+h2.anchor; b.textContent = '— '+h2.text;
+          b.addEventListener('click', () => setActiveTOC(b));
+          frag.appendChild(b);
+        });
+      }
+    });
+    el.toc.appendChild(frag);
+  }
+  function setActiveTOC(elm){
+    $$('#toc a').forEach(x => x.classList.remove('active'));
+    elm.classList.add('active');
+  }
+
+  function seedQuickTags(){
+    clear(el.quickTags);
+    const top = [...tagsIndex.entries()].sort((a,b)=>b[1].count-a[1].count).slice(0,12);
+    top.forEach(([t,meta]) => el.quickTags.appendChild(makeChip(t, meta.count)));
+  }
+  function makeChip(name,count){
+    const span = document.createElement('span');
+    span.className='chip'; span.role='button'; span.tabIndex=0;
+    span.innerHTML = `<span>@@${esc(name)}</span> <span class="count">${count}</span>`;
+    span.addEventListener('click', () => applyTag(name));
+    span.addEventListener('keydown', (e) => { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); applyTag(name); }});
+    return span;
+  }
+  function showActiveTag(){
+    clear(el.activeTag);
+    if(!activeTag){ return; }
+    const c = makeChip(activeTag, tagsIndex.get(activeTag)?.count || 0);
+    c.classList.add('active');
+    const x = document.createElement('button');
+    x.className='btn ghost'; x.textContent='Clear';
+    x.style.marginLeft='.5rem';
+    x.onclick = () => { activeTag=null; render(); showActiveTag(); setHash(); }
+    el.activeTag.appendChild(c);
+    el.activeTag.appendChild(x);
+  }
+
+  // Tag Panel
+  function openTagPanel(){
+    el.tagPanel.style.display='block';
+    buildTagList();
+    el.tagFilter.focus();
+  }
+  function closeTagPanel(){
+    el.tagPanel.style.display='none';
+  }
+  function buildTagList(){
+    clear(el.tagList);
+    const q = el.tagFilter.value.trim().toLowerCase();
+    const items = [...tagsIndex.entries()]
+      .filter(([t]) => t.toLowerCase().includes(q))
+      .sort((a,b)=> b[1].count - a[1].count);
+    if(!items.length){
+      el.tagList.innerHTML = `<div class="empty">No tags match "${esc(q)}".</div>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.forEach(([t,meta]) => {
+      const row = document.createElement('div');
+      row.className='row';
+      row.innerHTML = `<div>@@${esc(t)}</div><div class="count">${meta.count}</div>`;
+      row.addEventListener('click', () => {
+        applyTag(t);
+        closeTagPanel();
+      });
+      frag.appendChild(row);
+    });
+    el.tagList.appendChild(frag);
+  }
+
+  function applyTag(tag){
+    activeTag = tag;
+    mode = 'all'; // filtered view is a flat list of only lines that *start* with @@tag
+    updateModeButtons();
+    render();
+    showActiveTag();
+    setHash();
+  }
+
+  // Modes
+  function updateMode(newMode){
+    mode = newMode; activeTag = null;
+    updateModeButtons(); render(); showActiveTag(); setHash();
+  }
+  function updateModeButtons(){
+    el.modeButtons.forEach(b => b.classList.toggle('primary', b.dataset.mode===mode));
+    el.modeLabel.textContent = mode.toUpperCase();
+  }
+
+  // Search (client-side find with simple highlight; Enter cycles)
+  let lastQuery = '';
+  let lastMatches = [];
+  let matchIndex = 0;
+  function search(q){
+    q = q.trim();
+    if(!q){ clearHighlights(); return; }
+    if(q !== lastQuery){ clearHighlights(); lastMatches = []; matchIndex = 0; }
+    lastQuery = q;
+
+    // re-render to ensure full DOM exists for highlighting
+    if(!activeTag && mode!=='all') render();
+
+    const rx = new RegExp(escapeReg(q), 'gi');
+    $$('#md .line').forEach(p => {
+      const original = p.textContent;
+      const html = esc(original).replace(rx, m => `<mark>${m}</mark>`);
+      p.innerHTML = html;
+      if(html.includes('<mark>')) lastMatches.push(p);
+    });
+    if(lastMatches.length){
+      lastMatches[matchIndex % lastMatches.length].scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  }
+  function clearHighlights(){
+    if(!lines.length) return;
+    render();
+    lastQuery = ''; lastMatches = []; matchIndex = 0;
+  }
+
+  // Collapse/Expand
+  function setAll(open){
+    $$('#md details.group').forEach(d => d.open=open);
+  }
+
+  // Hash-based deep links
+  function setHash(){
+    const h = [];
+    if(mode && mode!=='h1') h.push('mode='+mode);
+    if(activeTag) h.push('tag='+encodeURIComponent(activeTag));
+    location.hash = h.length ? '#'+h.join('&') : '';
+  }
+  function restoreFromHash(){
+    const h = new URLSearchParams(location.hash.replace(/^#/,''));
+    const m = h.get('mode'); const t = h.get('tag');
+    if(m) mode = m;
+    if(t){ activeTag = decodeURIComponent(t); mode='all'; }
+    updateModeButtons();
+    render();
+    showActiveTag();
+  }
+
+  // Utilities
+  function escapeReg(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  // Event wiring
+  el.file.addEventListener('change', async e => {
+    const f = e.target.files?.[0];
+    if(!f) return;
+    const text = await f.text();
+    parse(text);
+  });
+  el.paste.addEventListener('click', async () => {
+    try{
+      const text = await navigator.clipboard.readText();
+      if(text) parse(text);
+    }catch{
+      alert('Clipboard permissions denied. Use ⌘/Ctrl+V directly into the page.');
+    }
+  });
+  el.search.addEventListener('input', e => search(e.target.value));
+  el.search.addEventListener('keydown', e => {
+    if(e.key==='Enter' && lastMatches.length){
+      matchIndex=(matchIndex+1)%lastMatches.length;
+      lastMatches[matchIndex].scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  });
+
+  el.tagsBtn.addEventListener('click', () => {
+    if(!tagsIndex.size){ alert('No @@tags found.'); return; }
+    el.tagPanel.style.display === 'block' ? closeTagPanel() : openTagPanel();
+  });
+  el.tagFilter.addEventListener('input', buildTagList);
+  document.addEventListener('keydown', e => {
+    if(e.key==='Escape'){ closeTagPanel(); }
+    // Quick mode toggles
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='1') updateMode('h1');
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='2') updateMode('h1h2');
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='3') updateMode('all');
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='f'){ e.preventDefault(); el.search.focus(); }
+  });
+
+  el.modeButtons.forEach(b => b.addEventListener('click', () => updateMode(b.dataset.mode)));
+  el.collapseAll.addEventListener('click', () => setAll(false));
+  el.expandAll.addEventListener('click', () => setAll(true));
+
+  window.addEventListener('hashchange', restoreFromHash);
+
+  // Initial demo content (optional and tiny)
+  const demo = `# Demo Document
+Welcome! Try switching modes, pressing "Tags", and filtering.
+
+## Tasks
+@@task Write a crisp one-pager
+@@task Review contract terms
+@@topic Legal-LLM
+
+## Notes
+Line with **bold**, \`inline code\`, and a [link](https://example.com).
+@@topic Agents
+@@idea Rapid prototypes
+`;
+  parse(demo);
+  restoreFromHash();
+})();
+</script>
+</body>
+</html>
