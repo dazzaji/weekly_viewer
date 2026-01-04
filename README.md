@@ -73,38 +73,15 @@ The `.gitignore` is configured to exclude:
 
 ---
 
-## Next Steps (Planned Enhancements)
-
-The following features are queued for the next development sprint:
-
-### 1. Selective File Loading
-**Problem:** Loading all 56 weeks at once is overwhelming for human use.
-
-**Solution:** Add the ability to select specific files to load:
-- Pick individual weeks one at a time
-- Select a subset of weeks (e.g., W40-W45)
-- Checkbox list after folder selection to choose which files to include
-
-### 2. Source File Context in Tag View
-**Problem:** When filtering by a tag (e.g., `@ACTION`), the results show lines but not which weekly file each line came from.
-
-**Solution:** When displaying tag-filtered results, show the source filename for each line:
-- Display filename as a header/prefix before each result
-- Group results by source file
-- Make it easy to see "this @ACTION came from 2025W20"
-
----
-
-**@CODEX:** Please review these planned features and comment in `comms.md` with any suggestions, alternative approaches, or implementation ideas before we proceed.
-
-**@DAZZA:** Questions for you:
-1. For selective file loading, would you prefer: (a) checkboxes after folder selection, (b) a dropdown/picker to add files one at a time, or (c) date range selector (e.g., "show weeks 40-45")?
-2. For source file context, should the filename appear (a) as a prefix on each line, (b) as a section header grouping all results from that file, or (c) both?
-
----
-
 ## Notes / Limitations
 
 - Folder selection uses `webkitdirectory`, so Chrome/Edge are safest.
 - No backend. Everything runs locally in the browser.
 - This is a viewer only (no writing back to notes).
+
+---
+
+## Next Steps (Proposed)
+
+- Selective file loading: after folder selection, show a checkbox list of week files with a **Load Selected** button. Optional quick filter by week number (e.g., 40-45).
+- Tag view source context: group tag results under file headers (e.g., `2025W20`), with an optional filename prefix per line if needed later.
