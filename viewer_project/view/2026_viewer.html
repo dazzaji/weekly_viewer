@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Markdown Navigator — Fold & Tag Filter</title>
+<title>Weekly Notes Navigator — Multi-File Viewer</title>
 <style>
   :root{
     --bg:#0b0c10;
@@ -140,14 +140,16 @@
 </head>
 <body>
   <header>
-    <span class="title">Markdown Navigator</span>
+    <span class="title">Weekly Notes Navigator</span>
     <div class="spacer"></div>
 
-    <label class="btn ghost" for="file" title="Open .md file">Open .md</label>
+    <label class="btn ghost" for="file" title="Open single .md file">Open .md</label>
     <input id="file" type="file" accept=".md,.markdown,.txt" />
+    <label class="btn primary" for="folder" title="Open folder with multiple .md files">Open Folder</label>
+    <input id="folder" type="file" webkitdirectory multiple style="display:none" />
     <button id="paste" class="btn ghost" title="Paste Markdown (⌘/Ctrl+V)">Paste</button>
 
-    <input id="search" type="search" placeholder="Find in text (⌘/Ctrl+F) — supports @@tag or words" />
+    <input id="search" type="search" placeholder="Find in text (⌘/Ctrl+F) — supports @ACTION, @METRIX, etc." />
 
     <div id="modeGroup" role="group" aria-label="heading view">
       <button class="btn" data-mode="h1">H1</button>
@@ -175,10 +177,11 @@
 
     <article>
       <div id="md" class="md" aria-live="polite">
-        <p class="tagline">Open a Markdown file or paste content to start. Headings become collapsible groups. Click "Tags" to view and filter lines that begin with <code class="mono">@@tag</code>.</p>
+        <p class="tagline">Click <strong>Open Folder</strong> to load all weekly notes at once, or <strong>Open .md</strong> for a single file. Headings become collapsible groups. Click "Tags" to filter.</p>
       </div>
 
       <div class="toolbar">
+        <span class="pill">Files: <span id="fileCount">0</span></span>
         <span class="pill">Lines: <span id="lineCount">0</span></span>
         <span class="pill">Tags: <span id="tagCount">0</span></span>
         <span class="pill">Mode: <span id="modeLabel">—</span></span>
@@ -201,9 +204,11 @@
 
   const el = {
     file: $('#file'),
+    folder: $('#folder'),
     paste: $('#paste'),
     search: $('#search'),
     md: $('#md'),
+    fileCount: $('#fileCount'),
     lineCount: $('#lineCount'),
     tagCount: $('#tagCount'),
     modeLabel: $('#modeLabel'),
@@ -226,21 +231,25 @@
   let tagsIndex = new Map(); // tag -> {count, lines:[idx]}
   let mode = 'h1'; // h1 | h1h2 | all
   let activeTag = null;
+  let loadedFileCount = 0;
 
   // Helpers
   const isH1 = l => /^# (?!#)/.test(l);
   const isH2 = l => /^## (?!#)/.test(l);
   const tagFromLine = l => {
-    // return the tag if line starts with @@word (allow leading spaces)
-    const m = l.match(/^\s*@@([a-zA-Z0-9_\-:.]+)/);
+    // return the tag if line starts with @TAG or @@tag (allow leading spaces)
+    // Supports: @ACTION, @ACTION_DONE, @METRIX, @@custom, etc.
+    const m = l.match(/^\s*(@{1,2}[A-Za-z][A-Za-z0-9_\-:.]*)/);
     return m ? m[1] : null;
   };
   const esc = s => s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
   const clear = n => { while(n.firstChild) n.removeChild(n.firstChild); };
 
-  function parse(mdText){
+  function parse(mdText, fileCount = 1){
     raw = mdText;
     lines = mdText.split(/\r?\n/);
+    loadedFileCount = fileCount;
+    el.fileCount.textContent = loadedFileCount;
     el.lineCount.textContent = lines.length;
 
     // Build heading groups (H1 + children region until next H1)
@@ -289,7 +298,8 @@
     s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
     s = s.replace(/`(.+?)`/g,'<code class="mono">$1</code>');
     s = s.replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
-    s = s.replace(/(^|\s)(@@[a-zA-Z0-9_\-:.]+)/g,'$1<mark>$2</mark>');
+    // Highlight both @TAG and @@tag patterns
+    s = s.replace(/(^|\s)(@{1,2}[A-Za-z][A-Za-z0-9_\-:.]*)/g,'$1<mark>$2</mark>');
     return s;
   }
 
@@ -304,12 +314,12 @@
       // Flat view: each line as paragraph or heading
       const frag = document.createDocumentFragment();
       lines.forEach((l, i) => {
-        // tag filter: only lines that START with @@tag (as requested)
+        // tag filter: only lines that START with the active tag
         if(activeTag){
-          if(!new RegExp(`^\\s*@@${escapeReg(activeTag)}\\b`).test(l)) return;
+          if(!new RegExp(`^\\s*${escapeReg(activeTag)}\\b`).test(l)) return;
         }
-        // Hide headings in tag view unless they also match the tag start (keeps strictness)
-        if(activeTag && (isH1(l) || isH2(l)) && !/^\s*@@/.test(l)) return;
+        // Hide headings in tag view unless they also match a tag start
+        if(activeTag && (isH1(l) || isH2(l)) && !/^\s*@/.test(l)) return;
 
         const p = document.createElement('p');
         p.className = 'line fade-enter';
@@ -397,7 +407,8 @@
   function makeChip(name,count){
     const span = document.createElement('span');
     span.className='chip'; span.role='button'; span.tabIndex=0;
-    span.innerHTML = `<span>@@${esc(name)}</span> <span class="count">${count}</span>`;
+    // Display tag as-is (already includes @ or @@)
+    span.innerHTML = `<span>${esc(name)}</span> <span class="count">${count}</span>`;
     span.addEventListener('click', () => applyTag(name));
     span.addEventListener('keydown', (e) => { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); applyTag(name); }});
     return span;
@@ -438,7 +449,8 @@
     items.forEach(([t,meta]) => {
       const row = document.createElement('div');
       row.className='row';
-      row.innerHTML = `<div>@@${esc(t)}</div><div class="count">${meta.count}</div>`;
+      // Display tag as-is (already includes @ or @@)
+      row.innerHTML = `<div>${esc(t)}</div><div class="count">${meta.count}</div>`;
       row.addEventListener('click', () => {
         applyTag(t);
         closeTagPanel();
@@ -450,7 +462,7 @@
 
   function applyTag(tag){
     activeTag = tag;
-    mode = 'all'; // filtered view is a flat list of only lines that *start* with @@tag
+    mode = 'all'; // filtered view is a flat list of only lines that start with the tag
     updateModeButtons();
     render();
     showActiveTag();
@@ -522,13 +534,56 @@
   // Utilities
   function escapeReg(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+  // Multi-file loader: sort by week number, concat with H1 separators
+  function extractWeekNum(filename) {
+    // Extract week number from filenames like "2025W01.md" or "2025W01-extra.md"
+    const m = filename.match(/(\d{4})W(\d{1,2})/i);
+    if (m) return parseInt(m[1]) * 100 + parseInt(m[2]);
+    return 999999; // put non-matching files at end
+  }
+
+  async function loadMultipleFiles(fileList) {
+    // Filter to only .md files
+    const mdFiles = Array.from(fileList).filter(f =>
+      f.name.endsWith('.md') || f.name.endsWith('.markdown') || f.name.endsWith('.txt')
+    );
+
+    if (!mdFiles.length) {
+      alert('No markdown files found in the selected folder.');
+      return;
+    }
+
+    // Sort by week number
+    mdFiles.sort((a, b) => extractWeekNum(a.name) - extractWeekNum(b.name));
+
+    // Read all files and concat with H1 separators
+    const parts = [];
+    for (const f of mdFiles) {
+      const text = await f.text();
+      // Extract a clean title from filename (remove .md, keep week info)
+      const title = f.name.replace(/\.(md|markdown|txt)$/i, '');
+      // Add H1 separator for each file
+      parts.push(`# === ${title} ===\n\n${text}`);
+    }
+
+    const combined = parts.join('\n\n---\n\n');
+    parse(combined, mdFiles.length);
+  }
+
   // Event wiring
   el.file.addEventListener('change', async e => {
     const f = e.target.files?.[0];
     if(!f) return;
     const text = await f.text();
-    parse(text);
+    parse(text, 1);
   });
+
+  el.folder.addEventListener('change', async e => {
+    const files = e.target.files;
+    if(!files || !files.length) return;
+    await loadMultipleFiles(files);
+  });
+
   el.paste.addEventListener('click', async () => {
     try{
       const text = await navigator.clipboard.readText();
@@ -546,7 +601,7 @@
   });
 
   el.tagsBtn.addEventListener('click', () => {
-    if(!tagsIndex.size){ alert('No @@tags found.'); return; }
+    if(!tagsIndex.size){ alert('No @tags found. Load files with @ACTION, @METRIX, etc.'); return; }
     el.tagPanel.style.display === 'block' ? closeTagPanel() : openTagPanel();
   });
   el.tagFilter.addEventListener('input', buildTagList);
@@ -565,21 +620,26 @@
 
   window.addEventListener('hashchange', restoreFromHash);
 
-  // Initial demo content (optional and tiny)
-  const demo = `# Demo Document
-Welcome! Try switching modes, pressing "Tags", and filtering.
+  // Initial demo content
+  const demo = `# === Welcome ===
 
-## Tasks
-@@task Write a crisp one-pager
-@@task Review contract terms
-@@topic Legal-LLM
+Click **Open Folder** above to load your weekly notes directory.
 
-## Notes
-Line with **bold**, \`inline code\`, and a [link](https://example.com).
-@@topic Agents
-@@idea Rapid prototypes
+All .md files will be sorted by week number and combined into a single navigable view.
+
+## Quick Start
+1. Click "Open Folder" and select your weeklies directory
+2. Use the sidebar to jump to any week
+3. Search across all weeks with Ctrl/Cmd+F
+4. Click "Tags" to filter by @ACTION, @METRIX, etc.
+
+## Features
+- **Multi-file loading**: Load 50+ weeks at once
+- **Week navigation**: Each file becomes a collapsible section
+- **Cross-week search**: Find anything across all your notes
+- **Tag filtering**: Jump to all @ACTION items instantly
 `;
-  parse(demo);
+  parse(demo, 0);
   restoreFromHash();
 })();
 </script>
